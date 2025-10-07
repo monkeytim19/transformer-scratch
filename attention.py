@@ -19,13 +19,14 @@ class Attention(nn.Module):
         query_t = torch.matmul(query, self.W_q)
         key_t = torch.matmul(key, self.W_k)
         value_t = torch.matmul(value, self.W_v)
-        
         query_key=torch.matmul(query_t, key_t.transpose(-2,-1))/math.sqrt(self.d_k)
         if attention_mask is not None:
             query_key = query_key.masked_fill(attention_mask.bool(), -torch.inf)
        
         attention = torch.matmul(self.softmax(query_key), value_t)
         return attention
+    
+
     
 class MultiHeadAttention(nn.Module):
     def __init__(self, query_shape,key_shape,value_shape, head_count, model_size=512):
@@ -40,8 +41,8 @@ class MultiHeadAttention(nn.Module):
 
         self.heads = [ Attention(self.query_shape, self.key_shape, self.value_shape, self.model_size) for _ in range(self.head_count)]
 
-    def forward(self, query, key, value):
-        mh_p1=torch.cat([head(query, key, value) for head in self.heads],-1)
+    def forward(self, query, key, value, attention_mask =None):
+        mh_p1=torch.cat([head(query, key, value, attention_mask) for head in self.heads],-1)
         mh_p2 = torch.matmul(mh_p1, self.W_O)
         return mh_p2
     
