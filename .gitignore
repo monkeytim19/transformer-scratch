@@ -171,3 +171,5 @@ cython_debug/
 .pypirc
 
 *.csv
+data/
+tokenized_data/
