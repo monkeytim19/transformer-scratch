@@ -9,9 +9,9 @@ class Attention(nn.Module):
         self.d_k = key_shape[-1]
         self.d_v = value_shape[-1]
         self.model_size = model_size
-        self.W_q= nn.Parameter(torch.nn.init.xavier_uniform_(torch.empty((self.model_size, self.d_q))))
-        self.W_k= nn.Parameter(torch.nn.init.xavier_uniform_(torch.empty((self.model_size, self.d_k))))
-        self.W_v= nn.Parameter(torch.nn.init.xavier_uniform_(torch.empty((self.model_size, self.d_v))))
+        self.W_q= nn.Parameter(torch.nn.init.xavier_uniform_(torch.empty((self.d_q, self.model_size))))
+        self.W_k= nn.Parameter(torch.nn.init.xavier_uniform_(torch.empty((self.d_k, self.model_size))))
+        self.W_v= nn.Parameter(torch.nn.init.xavier_uniform_(torch.empty((self.d_v, self.model_size))))
         
         self.softmax = nn.Softmax(dim=-1)
 
@@ -19,15 +19,15 @@ class Attention(nn.Module):
         query_t = torch.matmul(query, self.W_q)
         key_t = torch.matmul(key, self.W_k)
         value_t = torch.matmul(value, self.W_v)
-        query_key=torch.matmul(query_t, key_t.transpose(-2,-1))/math.sqrt(self.d_k)
-        if attention_mask is not None:
-            query_key = query_key.masked_fill(attention_mask.bool(), -torch.inf)
-       
-        attention = torch.matmul(self.softmax(query_key), value_t)
-        return attention
-    
 
-    
+        query_key=torch.matmul(query_t, key_t.transpose(-2,-1))/math.sqrt(self.d_k)
+
+        if attention_mask is not None:
+            query_key = query_key.masked_fill(attention_mask.bool(), float('-inf'))
+       
+        attention = torch.matmul(self.softmax(query_key, dim = -1), value_t)
+        return attention
+      
 class MultiHeadAttention(nn.Module):
     def __init__(self, query_shape,key_shape,value_shape, head_count, model_size=512):
         super(MultiHeadAttention,self).__init__()
@@ -39,7 +39,7 @@ class MultiHeadAttention(nn.Module):
         self.value_shape = value_shape
         self.W_O = nn.Parameter(nn.init.xavier_uniform_(torch.empty(self.head_count*self.value_shape[-1],self.model_size)))
 
-        self.heads = [ Attention(self.query_shape, self.key_shape, self.value_shape, self.model_size) for _ in range(self.head_count)]
+        self.heads = nn.ModuleList([Attention(self.query_shape, self.key_shape, self.value_shape, self.model_size) for _ in range(self.head_count)])
 
     def forward(self, query, key, value, attention_mask =None):
         mh_p1=torch.cat([head(query, key, value, attention_mask) for head in self.heads],-1)
@@ -58,7 +58,6 @@ class FeedForwardNetwork(nn.Module):
         self.linear_2 = nn.Linear(self.hidden_dimension,self.output_dimension)
 
     def forward(self,x):
-        input = x.detach().clone()
-        layer_1 = self.relu(self.linear_1(input))
+        layer_1 = self.relu(self.linear_1(x))
         layer_2 = self.relu(self.linear_2(layer_1))
         return layer_2
